@@ -1,10 +1,14 @@
 # IP Assessment Tool
 
-CLI tool that scans an entire AWS Organization to produce a consolidated inventory of active IP addresses, Elastic IPs, and VPC/Subnet CIDR allocations across all member accounts and regions. Designed to support IPAM Advanced Tier adoption decisions.
+CLI tool that scans an entire AWS Organization to produce a consolidated inventory of active IP addresses, Elastic IPs across all member accounts and regions. Designed to support IPAM Advanced Tier adoption decisions.
+This script provides  pre-implementation visibility for IPAM Advanced Tier adoption by scanning all AWS Organization accounts and regions to inventory every ENI and Elastic IPs. It delivers precise billable IP counts with service-level attribution (EC2, Lambda, RDS, etc.), enabling accurate cost forecasting instead of guesswork. The script generates executive-ready reports in multiple formats(html,csv), revealing optimization opportunities like unassociated EIPs that can reduce baseline costs before adoption. This read-only assessment transforms IPAM Advanced Tier decisions from risky "blind" implementations into confident, data-backed strategic choices with exact monthly cost projections.
 
 ## Quick Start
 
 ```bash
+
+#Clone the repository or Download ZIP file to local machine
+git clone git@github.com:aws-samples/sample-ip-assessment-tool.git
 
 # Create and activate a virtual environment
 python3 -m venv .venv
