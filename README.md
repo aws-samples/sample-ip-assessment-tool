@@ -29,7 +29,7 @@ python -m ip_assessment_tool --role-name OrganizationAccountAccessRole --output-
 # Parse an existing report
 python -m ip_assessment_tool --parse ./reports/ip_assessment_report.json
 
-#open report in the html format
+#Navigate to the report folder and open the report in HTML format
 cd report/
 ```
 
