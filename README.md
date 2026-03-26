@@ -14,7 +14,8 @@ This script provides  pre-implementation visibility for IPAM Advanced Tier adopt
 #Clone the repository or Download ZIP file to local machine
 git clone git@github.com:aws-samples/sample-ip-assessment-tool.git
 
-# Create and activate a virtual environment
+# Navigate to the code directory, Create and activate a virtual environment
+cd sample-ip-assessment-tool/
 python3 -m venv .venv
 source .venv/bin/activate
 
