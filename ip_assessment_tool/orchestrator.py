@@ -156,6 +156,14 @@ class Orchestrator:
             for rr in region_results
             if rr.eni_result is not None
         )
+
+        # Add associated EIPs without ENI (e.g., NAT Gateway) to active count
+        total_active_ips += sum(
+            rr.eip_result.unique_active_eip_count
+            for rr in region_results
+            if rr.eip_result is not None
+        )
+
         total_eips = sum(
             rr.eip_result.associated_count + rr.eip_result.unassociated_count
             for rr in region_results

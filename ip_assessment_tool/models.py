@@ -60,6 +60,7 @@ class EIPResult(BaseModel):
     associated_count: int
     unassociated_count: int
     unique_eip_count: int  # EIPs not already counted via ENI
+    unique_active_eip_count: int = 0  # Associated EIPs without eni_id (e.g., NAT Gateway)
 
 
 class CIDRRecord(BaseModel):

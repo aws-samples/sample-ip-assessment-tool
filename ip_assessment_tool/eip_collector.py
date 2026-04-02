@@ -87,6 +87,7 @@ def collect_eip_data(
     associated_count = 0
     unassociated_count = 0
     unique_eip_count = 0
+    unique_active_eip_count = 0
 
     for addr in addresses:
         allocation_id = addr.get("AllocationId", "")
@@ -120,14 +121,19 @@ def collect_eip_data(
         if not eni_id:
             unique_eip_count += 1
 
+        # Associated EIPs without eni_id are active but not counted via ENI
+        if is_associated and not eni_id:
+            unique_active_eip_count += 1
+
     logger.info(
-        "Account %s, region %s: found %d EIP(s), %d associated, %d unassociated, %d unique (not ENI-counted)",
+        "Account %s, region %s: found %d EIP(s), %d associated, %d unassociated, %d unique (not ENI-counted), %d unique active (associated, no ENI)",
         account_id,
         region,
         len(eips),
         associated_count,
         unassociated_count,
         unique_eip_count,
+        unique_active_eip_count,
     )
 
     return EIPResult(
@@ -137,4 +143,5 @@ def collect_eip_data(
         associated_count=associated_count,
         unassociated_count=unassociated_count,
         unique_eip_count=unique_eip_count,
+        unique_active_eip_count=unique_active_eip_count,
     )

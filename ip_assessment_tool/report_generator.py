@@ -35,7 +35,6 @@ def write_csv_report(report: Report, output_path: Path) -> Path:
         "inactive_ips",
         "eips_associated",
         "eips_unassociated",
-        "unique_eips",
     ]
 
     with open(file_path, "w", newline="", encoding="utf-8") as f:
@@ -48,7 +47,6 @@ def write_csv_report(report: Report, output_path: Path) -> Path:
                 inactive_ips = 0
                 eips_associated = 0
                 eips_unassociated = 0
-                unique_eips = 0
 
                 if region_result.eni_result:
                     active_ips = region_result.eni_result.active_ip_count
@@ -57,7 +55,6 @@ def write_csv_report(report: Report, output_path: Path) -> Path:
                 if region_result.eip_result:
                     eips_associated = region_result.eip_result.associated_count
                     eips_unassociated = region_result.eip_result.unassociated_count
-                    unique_eips = region_result.eip_result.unique_eip_count
 
                 writer.writerow([
                     account.account_id,
@@ -67,7 +64,6 @@ def write_csv_report(report: Report, output_path: Path) -> Path:
                     inactive_ips,
                     eips_associated,
                     eips_unassociated,
-                    unique_eips,
                 ])
 
     logger.info("CSV report written to %s", file_path)
@@ -212,7 +208,7 @@ def write_html_report(report: Report, output_path: Path) -> Path:
     for r in error_rows:
         error_tbody += "<tr>" + "".join(f"<td>{_esc(c)}</td>" for c in r) + "</tr>\n"
     no_errors_msg = '<tr><td colspan="5" style="text-align:center;color:var(--green);padding:16px;">No errors recorded</td></tr>' if not error_rows else ""
-    no_summary_msg = '<tr><td colspan="8" style="text-align:center;color:var(--text-secondary);padding:16px;">No IPs found across any account or region</td></tr>' if not summary_rows else ""
+    no_summary_msg = '<tr><td colspan="7" style="text-align:center;color:var(--text-secondary);padding:16px;">No IPs found across any account or region</td></tr>' if not summary_rows else ""
     no_eni_msg = '<tr><td colspan="11" style="text-align:center;color:var(--text-secondary);padding:16px;">No ENIs found across any account or region</td></tr>' if not eni_rows else ""
     no_eip_msg = '<tr><td colspan="9" style="text-align:center;color:var(--text-secondary);padding:16px;">No EIPs found across any account or region</td></tr>' if not eip_rows else ""
 
@@ -370,7 +366,7 @@ def write_html_report(report: Report, output_path: Path) -> Path:
       <thead><tr>
         <th>Account ID</th><th>Account Name</th><th>Region</th>
         <th>Active IPs</th><th>Inactive IPs</th><th>EIPs Assoc.</th>
-        <th>EIPs Unassoc.</th><th>Unique EIPs</th>
+        <th>EIPs Unassoc.</th>
       </tr></thead>
       <tbody>{summary_tbody}{no_summary_msg}</tbody>
     </table>
@@ -432,14 +428,15 @@ def _build_summary_rows(report: Report) -> list[list[str]]:
     for account in report.accounts:
         for rr in account.regions:
             active = rr.eni_result.active_ip_count if rr.eni_result else 0
+            active += rr.eip_result.unique_active_eip_count if rr.eip_result else 0
             inactive = rr.eni_result.inactive_ip_count if rr.eni_result else 0
+            inactive += rr.eip_result.unassociated_count if rr.eip_result else 0
             ea = rr.eip_result.associated_count if rr.eip_result else 0
             eu = rr.eip_result.unassociated_count if rr.eip_result else 0
-            ue = rr.eip_result.unique_eip_count if rr.eip_result else 0
-            if active or inactive or ea or eu or ue:
+            if active or inactive or ea or eu:
                 rows.append([
                     account.account_id, account.account_name, rr.region,
-                    str(active), str(inactive), str(ea), str(eu), str(ue),
+                    str(active), str(inactive), str(ea), str(eu),
                 ])
     return rows
 

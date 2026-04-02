@@ -36,6 +36,7 @@ def aggregate_results(
                 total_inactive_ips += region.eni_result.inactive_ip_count
 
             if region.eip_result is not None:
+                total_inactive_ips += region.eip_result.unassociated_count
                 total_eips_associated += region.eip_result.associated_count
                 total_eips_unassociated += region.eip_result.unassociated_count
 
