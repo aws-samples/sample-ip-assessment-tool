@@ -80,6 +80,15 @@ def collect_eni_data(ec2_client, account_id: str, region: str) -> ENIResult:
     enis: list[ENIRecord] = []
     active_ip_count = 0
     inactive_ip_count = 0
+    active_ipv4_count = 0
+    active_ipv6_count = 0
+    inactive_ipv4_count = 0
+    inactive_ipv6_count = 0
+    active_ipv4_prefix_count = 0
+    active_ipv6_prefix_count = 0
+    # Distinct public IPv4 address strings seen on in-use ENIs (deduped per ENI
+    # and across ENIs); unioned with EIPs downstream so each address bills once.
+    active_public_ipv4_addresses: set[str] = set()
 
     for page in paginator.paginate():
         for eni in page.get("NetworkInterfaces", []):
@@ -96,7 +105,33 @@ def collect_eni_data(ec2_client, account_id: str, region: str) -> ENIResult:
                 for addr in eni.get("Ipv6Addresses", [])
             ]
 
-            public_ip = eni.get("Association", {}).get("PublicIp")
+            # Delegated prefixes (blocks of addresses). Free; inventory only.
+            ipv4_prefixes = [
+                p["Ipv4Prefix"]
+                for p in eni.get("Ipv4Prefixes", [])
+                if p.get("Ipv4Prefix")
+            ]
+            ipv6_prefixes = [
+                p["Ipv6Prefix"]
+                for p in eni.get("Ipv6Prefixes", [])
+                if p.get("Ipv6Prefix")
+            ]
+
+            # Collect every public IPv4 on this ENI, not just the primary
+            # association. A public IP can be associated at the ENI level
+            # (Association.PublicIp) and/or per private IP
+            # (PrivateIpAddresses[].Association.PublicIp).
+            eni_public_ips: set[str] = set()
+            top_assoc = eni.get("Association", {}).get("PublicIp")
+            if top_assoc:
+                eni_public_ips.add(top_assoc)
+            for priv in eni.get("PrivateIpAddresses", []):
+                assoc_ip = priv.get("Association", {}).get("PublicIp")
+                if assoc_ip:
+                    eni_public_ips.add(assoc_ip)
+
+            # Keep the primary public IP on the record for the detail reports.
+            public_ip = top_assoc or (next(iter(eni_public_ips), None))
             interface_type = eni.get("InterfaceType", "")
             description = eni.get("Description", "")
             service_managed = _infer_service_managed(eni)
@@ -111,22 +146,43 @@ def collect_eni_data(ec2_client, account_id: str, region: str) -> ENIResult:
                     interface_type=interface_type or None,
                     service_managed=service_managed,
                     description=description or None,
+                    ipv4_prefixes=ipv4_prefixes,
+                    ipv6_prefixes=ipv6_prefixes,
                 )
             )
 
-            ip_count = len(private_ipv4_addresses) + len(ipv6_addresses)
+            ipv4_count = len(private_ipv4_addresses)
+            ipv6_count = len(ipv6_addresses)
+            ip_count = ipv4_count + ipv6_count
 
             if status == "in-use":
                 active_ip_count += ip_count
+                active_ipv4_count += ipv4_count
+                active_ipv6_count += ipv6_count
+                active_ipv4_prefix_count += len(ipv4_prefixes)
+                active_ipv6_prefix_count += len(ipv6_prefixes)
+                # Record each distinct public IPv4 for later dedup against EIPs.
+                active_public_ipv4_addresses.update(eni_public_ips)
             elif status == "available":
                 inactive_ip_count += ip_count
+                inactive_ipv4_count += ipv4_count
+                inactive_ipv6_count += ipv6_count
+
+    active_public_ipv4_count = len(active_public_ipv4_addresses)
 
     logger.info(
-        "Account %s, region %s: found %d ENI(s), %d active IP(s), %d inactive IP(s)",
+        "Account %s, region %s: found %d ENI(s), %d active IP(s) "
+        "(%d IPv4, %d IPv6, %d billable public IPv4, %d IPv4 prefixes, "
+        "%d IPv6 prefixes), %d inactive IP(s)",
         account_id,
         region,
         len(enis),
         active_ip_count,
+        active_ipv4_count,
+        active_ipv6_count,
+        active_public_ipv4_count,
+        active_ipv4_prefix_count,
+        active_ipv6_prefix_count,
         inactive_ip_count,
     )
 
@@ -136,4 +192,12 @@ def collect_eni_data(ec2_client, account_id: str, region: str) -> ENIResult:
         enis=enis,
         active_ip_count=active_ip_count,
         inactive_ip_count=inactive_ip_count,
+        active_ipv4_count=active_ipv4_count,
+        active_ipv6_count=active_ipv6_count,
+        active_public_ipv4_count=active_public_ipv4_count,
+        inactive_ipv4_count=inactive_ipv4_count,
+        inactive_ipv6_count=inactive_ipv6_count,
+        active_public_ipv4_addresses=sorted(active_public_ipv4_addresses),
+        active_ipv4_prefix_count=active_ipv4_prefix_count,
+        active_ipv6_prefix_count=active_ipv6_prefix_count,
     )

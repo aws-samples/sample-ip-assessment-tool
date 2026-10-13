@@ -126,6 +126,8 @@ def write_eni_detail_csv(report: Report, output_path: Path) -> Path:
         "interface_type",
         "ipv4_count",
         "ipv6_count",
+        "ipv4_prefix_count",
+        "ipv6_prefix_count",
         "public_ip",
         "description",
     ]
@@ -148,6 +150,8 @@ def write_eni_detail_csv(report: Report, output_path: Path) -> Path:
                             eni.interface_type or "",
                             len(eni.private_ipv4_addresses),
                             len(eni.ipv6_addresses),
+                            len(eni.ipv4_prefixes),
+                            len(eni.ipv6_prefixes),
                             eni.public_ip or "",
                             eni.description or "",
                         ])
@@ -209,7 +213,7 @@ def write_html_report(report: Report, output_path: Path) -> Path:
         error_tbody += "<tr>" + "".join(f"<td>{_esc(c)}</td>" for c in r) + "</tr>\n"
     no_errors_msg = '<tr><td colspan="5" style="text-align:center;color:var(--green);padding:16px;">No errors recorded</td></tr>' if not error_rows else ""
     no_summary_msg = '<tr><td colspan="7" style="text-align:center;color:var(--text-secondary);padding:16px;">No IPs found across any account or region</td></tr>' if not summary_rows else ""
-    no_eni_msg = '<tr><td colspan="11" style="text-align:center;color:var(--text-secondary);padding:16px;">No ENIs found across any account or region</td></tr>' if not eni_rows else ""
+    no_eni_msg = '<tr><td colspan="13" style="text-align:center;color:var(--text-secondary);padding:16px;">No ENIs found across any account or region</td></tr>' if not eni_rows else ""
     no_eip_msg = '<tr><td colspan="9" style="text-align:center;color:var(--text-secondary);padding:16px;">No EIPs found across any account or region</td></tr>' if not eip_rows else ""
 
     html_content = f"""<!DOCTYPE html>
@@ -346,9 +350,13 @@ def write_html_report(report: Report, output_path: Path) -> Path:
   <div class="card"><div class="value">{summary.total_accounts_scanned}</div><div class="label">Accounts Scanned</div></div>
   <div class="card"><div class="value">{summary.total_regions_scanned}</div><div class="label">Regions Scanned</div></div>
   <div class="card"><div class="value">{summary.total_active_ips:,}</div><div class="label">Active IPs</div></div>
+  <div class="card"><div class="value">{summary.total_active_ipv4:,}</div><div class="label">Active IPv4 (private)</div></div>
+  <div class="card"><div class="value">{summary.total_active_ipv6:,}</div><div class="label">Active IPv6</div></div>
   <div class="card"><div class="value">{summary.total_inactive_ips:,}</div><div class="label">Inactive IPs</div></div>
   <div class="card"><div class="value">{summary.total_eips_associated:,}</div><div class="label">EIPs Associated</div></div>
   <div class="card"><div class="value">{summary.total_eips_unassociated:,}</div><div class="label">EIPs Unassociated</div></div>
+  <div class="card"><div class="value">{summary.total_billable_public_ipv4:,}</div><div class="label">Billable Public IPv4</div></div>
+  <div class="card"><div class="value">${summary.estimated_monthly_public_ipv4_cost_usd:,.2f}</div><div class="label">Est. Monthly IPv4 Cost</div></div>
   <div class="card"><div class="value">{summary.total_accounts_with_errors}</div><div class="label">Accounts with Errors</div></div>
 </div>
 
@@ -380,7 +388,8 @@ def write_html_report(report: Report, output_path: Path) -> Path:
       <thead><tr>
         <th>Account ID</th><th>Account Name</th><th>Region</th><th>ENI ID</th>
         <th>Status</th><th>Service Managed</th><th>Interface Type</th>
-        <th>IPv4 Count</th><th>IPv6 Count</th><th>Public IP</th><th>Description</th>
+        <th>IPv4 Count</th><th>IPv6 Count</th><th>IPv4 Prefixes</th><th>IPv6 Prefixes</th>
+        <th>Public IP</th><th>Description</th>
       </tr></thead>
       <tbody>{eni_tbody}{no_eni_msg}</tbody>
     </table>
@@ -454,6 +463,8 @@ def _build_eni_rows(report: Report) -> list[list[str]]:
                         eni.interface_type or "",
                         str(len(eni.private_ipv4_addresses)),
                         str(len(eni.ipv6_addresses)),
+                        str(len(eni.ipv4_prefixes)),
+                        str(len(eni.ipv6_prefixes)),
                         eni.public_ip or "", eni.description or "",
                     ])
     return rows

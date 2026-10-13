@@ -83,9 +83,19 @@ def pretty_print_report(report: Report) -> str:
     lines.append(f"Total Accounts with Errors:  {s.total_accounts_with_errors}")
     lines.append(f"Total Regions Scanned:       {s.total_regions_scanned}")
     lines.append(f"Total Active IPs:            {s.total_active_ips}")
+    lines.append(f"  - Active IPv4 (private):   {s.total_active_ipv4}")
+    lines.append(f"  - Active IPv6:             {s.total_active_ipv6}")
+    lines.append(f"  - IPv4 Prefixes (free):    {s.total_active_ipv4_prefixes}")
+    lines.append(f"  - IPv6 Prefixes (free):    {s.total_active_ipv6_prefixes}")
     lines.append(f"Total Inactive IPs:          {s.total_inactive_ips}")
     lines.append(f"Total EIPs Associated:       {s.total_eips_associated}")
     lines.append(f"Total EIPs Unassociated:     {s.total_eips_unassociated}")
+    lines.append("-" * 100)
+    lines.append(f"Billable Public IPv4:        {s.total_billable_public_ipv4}")
+    lines.append(
+        f"Est. Monthly IPv4 Cost (USD): ${s.estimated_monthly_public_ipv4_cost_usd:,.2f}"
+        f"  (@ ${0.005}/hr, ~730 hrs/mo; IPv6 is not billed)"
+    )
     lines.append("=" * 100)
 
     return "\n".join(lines)

@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.hypothesis/
+
+# Generated assessment reports (may contain real account IDs, IPs, and ARNs).
+# Tracked sample files under reports/ (e.g. dummy_*) are kept via the exception below.
+reports/*.json
+reports/*.csv
+reports/*.html
+!reports/dummy_*
+
+# OS / IDE
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment variables
+.env

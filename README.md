@@ -23,8 +23,12 @@ source .venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Run the assessment
+# Run the assessment across the whole AWS Organization
 python -m ip_assessment_tool --role-name OrganizationAccountAccessRole --output-dir ./reports --format both
+
+# Scan ONLY the account for your current credentials (no Organizations access or
+# cross-account role needed — e.g. when running from the management account)
+python -m ip_assessment_tool --current-account --output-dir ./reports --format both
 
 # Parse an existing report
 python -m ip_assessment_tool --parse ./reports/ip_assessment_report.json
@@ -41,7 +45,50 @@ cd report/
 | `--output-dir` | `.` | Directory for report output |
 | `--format` | `both` | Output format: `json`, `csv`, or `both` |
 | `--account-filter` | all | Comma-separated account IDs to scan |
+| `--current-account` | off | Scan only the current credentials' account using the default AWS session; skips Organizations discovery and role assumption |
 | `--parse FILE` | — | Parse and pretty-print an existing JSON report |
+
+> **Note on the caller's own account:** In the default Organization-wide scan, the
+> account belonging to your current credentials is scanned directly with your
+> existing session — the tool does **not** try to assume a role into it (assuming
+> a role into the account you are already in typically fails with `AccessDenied`).
+> Use `--current-account` when you only want that single account and have no
+> Organizations access at all.
+
+### Common usage
+
+```bash
+# Whole AWS Organization, all enabled regions (default)
+python -m ip_assessment_tool --output-dir ./reports --format both
+
+# A single account via Organizations discovery (assumes the role into it)
+python -m ip_assessment_tool --account-filter 111111111111 --output-dir ./reports
+
+# Several specific accounts
+python -m ip_assessment_tool --account-filter 111111111111,222222222222 --output-dir ./reports
+
+# Only the account of your current credentials — no Organizations access or
+# cross-account role needed (e.g. running from the management account)
+python -m ip_assessment_tool --current-account --output-dir ./reports --format both
+
+# Use a non-default cross-account role name
+python -m ip_assessment_tool --role-name MyScanRole --output-dir ./reports
+
+# Re-read a previously generated JSON report (no AWS calls)
+python -m ip_assessment_tool --parse ./reports/ip_assessment_report.json
+```
+
+### Scope and limitations
+
+- **Regions:** Every run scans **all enabled regions** in each in-scope account —
+  the regions are discovered automatically via `ec2:DescribeRegions`. There is
+  currently **no option to limit the scan to specific regions**; `--account-filter`
+  narrows accounts, but not regions.
+- **Accounts:** `--account-filter` (specific account IDs) and `--current-account`
+  (the caller's own account only) are the two ways to narrow which accounts are
+  scanned. Without either, the whole Organization is scanned.
+- **Unreachable accounts:** Accounts the tool cannot assume a role into are logged
+  as errors and skipped (fail-forward), so org-wide totals are a floor, not a ceiling.
 
 ## Prerequisites
 
@@ -97,9 +144,50 @@ The cross-account role in each member account needs:
 
 ## What It Collects
 
-- **ENIs**: All Elastic Network Interfaces with private IPv4 and IPv6 addresses, classified as active (in-use) or inactive (available), with the managing AWS service identified (EC2, ELB, Lambda, RDS, NAT Gateway, ECS, VPC Endpoint, etc.)
+- **ENIs**: All Elastic Network Interfaces with private IPv4 and IPv6 addresses (and any delegated IPv4/IPv6 prefixes), classified as active (in-use) or inactive (available), with the managing AWS service identified (EC2, ELB, Lambda, RDS, NAT Gateway, ECS, VPC Endpoint, etc.)
 - **EIPs**: All Elastic IPs, classified as associated or unassociated, with the associated service identified and double-count prevention against ENI data
 - **VPC CIDRs**: All VPC primary and secondary CIDR blocks (IPv4 and IPv6), subnet CIDRs, and available IP counts
+
+## IPv4 vs IPv6 Billing Methodology
+
+Since **February 1, 2024**, AWS charges **$0.005 per public IPv4 address per hour**
+(~$3.65/month), whether the address is attached to a resource or sitting idle.
+This tool uses that rate to project cost. The rules it applies:
+
+| Address type | Billable? |
+|---|---|
+| Public IPv4 (auto-assigned on an ENI, or an Elastic IP) | **Yes** — $0.005/hr each |
+| Private IPv4 (RFC 1918, e.g. `10.x`), including IPv4 prefixes | No — free |
+| IPv6 (any address or prefix, public or private) | No — free |
+
+Key points:
+
+- **IPv6 is never charged.** A dual-stack ENI with both IPv4 and IPv6 is billed only
+  for its public IPv4 — the IPv6 address adds nothing. There is no double charge.
+- **Billable count is deduplicated.** An Elastic IP attached to an ENI is the same
+  address reported by both the ENI and EIP collectors. The tool counts the
+  **distinct union** of ENI public IPs and EIP public IPs per region, so each
+  billable address is counted exactly once.
+- **Multiple public IPs per ENI are counted.** An EIP associates with an individual
+  private IPv4 on an ENI, not the ENI as a whole, so an ENI with secondary private
+  IPs can have several EIPs attached — one per private IP, each a distinct billable
+  public IPv4. The tool inspects every per-private-IP association
+  (`PrivateIpAddresses[].Association.PublicIp`) in addition to the ENI-level
+  association, so all of them are counted rather than just the primary.
+- **Both associated and unassociated EIPs are billed.** Idle, unattached Elastic IPs
+  still cost $0.005/hr — the report surfaces these as a cleanup opportunity.
+- **Delegated prefixes** (`Ipv4Prefixes` / `Ipv6Prefixes`) are collected as inventory
+  but excluded from the billable total, since prefix addresses are free.
+- The monthly cost estimate uses `$0.005/hr * 730 hrs`. It does **not** model the EC2
+  Free Tier (750 public IPv4 hours/month for the first 12 months) or BYOIP addresses
+  (not charged), so it may slightly overstate cost for new accounts.
+- **Unreachable accounts are not measured.** If the tool cannot assume a role into an
+  account, that account is logged as an error and excluded — so org-wide billable
+  totals are a **floor**, not a ceiling.
+
+The report exposes `active_ipv4` / `active_ipv6` separately, a `billable_public_ipv4`
+count, and an `estimated_monthly_public_ipv4_cost_usd` projection, plus IPv4/IPv6
+prefix inventory counts.
 
 ## Report Output
 
@@ -117,11 +205,16 @@ An `ip_assessment_report.html` file is always generated regardless of format cho
 
 ### Summary CSV columns
 
-`account_id`, `account_name`, `region`, `active_ips`, `inactive_ips`, `eips_associated`, `eips_unassociated`, `unique_eips`
+`account_id`, `account_name`, `region`, `active_ips`, `inactive_ips`, `eips_associated`, `eips_unassociated`
+
+> The richer IPv4/IPv6 breakdown and billing figures (`active_ipv4`, `active_ipv6`,
+> `billable_public_ipv4`, `estimated_monthly_public_ipv4_cost_usd`, prefix counts)
+> are available in the JSON report's `summary` object and in the console output of
+> `--parse`.
 
 ### ENI Detail CSV columns
 
-`account_id`, `account_name`, `region`, `eni_id`, `status`, `service_managed`, `interface_type`, `ipv4_count`, `ipv6_count`, `public_ip`, `description`
+`account_id`, `account_name`, `region`, `eni_id`, `status`, `service_managed`, `interface_type`, `ipv4_count`, `ipv6_count`, `ipv4_prefix_count`, `ipv6_prefix_count`, `public_ip`, `description`
 
 ### EIP Detail CSV columns
 
@@ -165,8 +258,11 @@ ip_assessment_tool/
 
 ## Testing
 
+`pytest` and `hypothesis` are listed in `requirements.txt`, but an automated test
+suite under `tests/` is not yet part of this repository. Once added, run it with:
+
 ```bash
-python -m pytest tests/test_retry.py tests/test_discovery.py tests/test_role_assumer.py tests/test_region_scanner.py tests/test_eni_collector.py tests/test_eip_collector.py tests/test_cidr_collector.py tests/test_aggregator.py tests/test_report_generator.py tests/test_report_parser.py -v
+python -m pytest tests/ -v
 ```
 
 ## Error Handling

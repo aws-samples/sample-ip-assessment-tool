@@ -44,6 +44,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Comma-separated list of account IDs to scan (default: all accounts)",
     )
     parser.add_argument(
+        "--current-account",
+        action="store_true",
+        help=(
+            "Scan only the account for the current credentials, using the default "
+            "AWS session directly. Skips AWS Organizations discovery and cross-account "
+            "role assumption. Useful when you lack Organizations access or an assumable "
+            "role (e.g. running against the management account itself)."
+        ),
+    )
+    parser.add_argument(
         "--parse",
         type=str,
         default=None,
@@ -86,6 +96,7 @@ def main(args: list[str] | None = None) -> int:
             output_dir=parsed.output_dir,
             output_format=parsed.format,
             account_filter=account_filter,
+            current_account=parsed.current_account,
         )
         report = orchestrator.run()
         print(

@@ -88,10 +88,13 @@ def collect_eip_data(
     unassociated_count = 0
     unique_eip_count = 0
     unique_active_eip_count = 0
+    public_ipv4_addresses: set[str] = set()
 
     for addr in addresses:
         allocation_id = addr.get("AllocationId", "")
         public_ip = addr.get("PublicIp", "")
+        if public_ip:
+            public_ipv4_addresses.add(public_ip)
         association_id = addr.get("AssociationId") or None
         eni_id = addr.get("NetworkInterfaceId") or None
         instance_id = addr.get("InstanceId") or None
@@ -144,4 +147,5 @@ def collect_eip_data(
         unassociated_count=unassociated_count,
         unique_eip_count=unique_eip_count,
         unique_active_eip_count=unique_active_eip_count,
+        public_ipv4_addresses=sorted(public_ipv4_addresses),
     )
