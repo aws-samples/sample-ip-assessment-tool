@@ -7,6 +7,15 @@ Sample Report Output (HTML)
 <img width="1899" height="850" alt="Screenshot 2026-03-25 at 9 08 57 PM" src="https://github.com/user-attachments/assets/105c32e5-7644-4f89-b0e9-4bf59bbe0dde" />
 
 
+⚠️ Important Notice
+
+These tools are provided as sample code. If you intend to deploy/run them in production, start with a non-production environment first, and before deploying/running to production:
+
+    Test thoroughly in a non-production environment first
+    Review IAM permissions and security configurations against your organization's policies
+    Validate that behavior meets your operational requirements
+
+See the LICENSE file for terms of use.
 
 ## Quick Start
 
